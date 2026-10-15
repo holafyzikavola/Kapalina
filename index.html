@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Molekuly vody v kapalině</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+body{margin:0;background:#0b0b0a;color:#F1EFE8;font-family:system-ui,"Segoe UI",sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.wrap{width:min(96vw,calc((100vh - 130px)*16/9))}
+canvas{width:100%;display:block;border-radius:12px;background:#141413}
+.row{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:15px;color:#B4B2A9}
+button{background:transparent;color:#F1EFE8;border:1px solid #5F5E5A;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px}
+button:hover{background:#2C2C2A}
+input[type=range]{flex:1;min-width:140px;accent-color:#F0997B}
+input[type=checkbox]{accent-color:#F0997B}
+label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.val{color:#F1EFE8;font-weight:500;min-width:50px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<canvas id="c"></canvas>
+<div class="row">
+<span>Teplota</span>
+<input type="range" id="t" min="1" max="99" step="1" value="20">
+<span id="to" class="val"></span>
+<button id="p"></button>
+<button id="fs" aria-label="Celá obrazovka"><i class="ti ti-maximize"></i></button>
+</div>
+<div class="row">
+<label><input type="checkbox" id="tr" checked> Sledovat jednu molekulu</label>
+<label><input type="checkbox" id="hb"> Ukázat přitažlivé síly</label>
+<span id="v" style="margin-left:auto"></span>
+</div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),W=680,H=383,R=12,dpr=window.devicePixelRatio||1;
+function fit(){const s=cv.clientWidth/W;cv.width=W*s*dpr;cv.height=H*s*dpr;cv.style.height=H*s+'px';ctx.setTransform(s*dpr,0,0,s*dpr,0,0)}
+fit();addEventListener('resize',fit);
+let T=293,run=true,trail=[];const M=[];
+const cols=Math.floor((W-2*R)/(2*R+1));
+for(let r=0;r<6;r++)for(let c=0;c<cols;c++)M.push({x:R+4+c*(2*R+1)+(r%2?R/2:0),y:H-R-2-r*(2*R-1),vx:(Math.random()-.5)*60,vy:(Math.random()-.5)*60,ax:0,ay:0,an:Math.random()*6.283,w:(Math.random()-.5)*4});
+const N=M.length,K=900,A=110,G=70,tgt=()=>38*Math.sqrt(T/293);let bonds=[];
+function sub(dt){for(const m of M){m.ax=0;m.ay=G}
+const hb=document.getElementById('hb').checked;if(hb)bonds=[];
+for(let i=0;i<N;i++){const a=M[i];for(let j=i+1;j<N;j++){const b=M[j],dx=b.x-a.x,dy=b.y-a.y;if(Math.abs(dx)>3*R||Math.abs(dy)>3*R)continue;
+const d=Math.hypot(dx,dy)||.01,nx=dx/d,ny=dy/d;let f=0;
+if(d<2*R)f=-K*(2*R-d);else if(d<2.8*R){f=A;if(hb&&d<2.4*R)bonds.push([a,b])}
+a.ax+=f*nx;a.ay+=f*ny;b.ax-=f*nx;b.ay-=f*ny}}
+let s=0;for(const m of M){m.vx+=m.ax*dt;m.vy+=m.ay*dt;s+=Math.hypot(m.vx,m.vy)}
+const k=1+.04*(tgt()/(s/N)-1);
+for(const m of M){m.vx*=k;m.vy*=k;const sp=Math.hypot(m.vx,m.vy);if(sp>400){m.vx*=400/sp;m.vy*=400/sp}
+m.x+=m.vx*dt;m.y+=m.vy*dt;m.an+=m.w*dt;if(Math.random()<.01)m.w=(Math.random()-.5)*5;
+if(m.x<R){m.x=R;m.vx=Math.abs(m.vx)}if(m.x>W-R){m.x=W-R;m.vx=-Math.abs(m.vx)}
+if(m.y<R){m.y=R;m.vy=Math.abs(m.vy)}if(m.y>H-R){m.y=H-R;m.vy=-Math.abs(m.vy)}}}
+function step(dt){for(let i=0;i<4;i++)sub(dt/4);
+if(document.getElementById('tr').checked){trail.push([M[40].x,M[40].y]);if(trail.length>500)trail.shift()}else trail=[]}
+function circ(x,y,r,f,s){ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.fillStyle=f;ctx.fill();if(s){ctx.lineWidth=.8;ctx.strokeStyle=s;ctx.stroke()}}
+function draw(){ctx.clearRect(0,0,W,H);
+if(document.getElementById('hb').checked){ctx.setLineDash([3,3]);ctx.strokeStyle='rgba(133,183,235,.55)';ctx.lineWidth=1;ctx.beginPath();for(const [a,b] of bonds){ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y)}ctx.stroke();ctx.setLineDash([])}
+if(trail.length>1){ctx.beginPath();ctx.moveTo(trail[0][0],trail[0][1]);for(const p of trail)ctx.lineTo(p[0],p[1]);ctx.strokeStyle='rgba(239,159,39,.6)';ctx.lineWidth=1.5;ctx.stroke()}
+M.forEach((m,i)=>{const t=i===40&&document.getElementById('tr').checked;
+for(const s of[-1,1]){const a=m.an+s*.91;circ(m.x+Math.cos(a)*8.5,m.y+Math.sin(a)*8.5,4.8,'#F1EFE8','#888780')}
+circ(m.x,m.y,7.5,t?'#EF9F27':'#E24B4A',t?'#FAC775':'#F7C1C1');circ(m.x-2.3,m.y-2.3,2.2,t?'#FAEEDA':'#FCEBEB')});
+ctx.fillStyle='#F1EFE8';ctx.font='500 16px system-ui,sans-serif';ctx.fillText('Voda H₂O · kapalina',16,28);
+ctx.fillStyle='#B4B2A9';ctx.font='12px system-ui,sans-serif';ctx.fillText('Červená = kyslík, bílé = vodík',16,46)}
+let last=performance.now();
+function loop(now){const dt=Math.min((now-last)/1000,.033);last=now;if(run)step(dt);draw();requestAnimationFrame(loop)}
+for(let i=0;i<60;i++)step(.02);requestAnimationFrame(loop);
+const ts=document.getElementById('t'),pb=document.getElementById('p');
+function upd(){T=+ts.value+273;document.getElementById('to').textContent=ts.value+' °C';
+document.getElementById('v').textContent='Průměrná rychlost ≈ '+Math.round(Math.sqrt(3*8.314*T/0.018)).toLocaleString('cs')+' m/s'}
+ts.oninput=upd;upd();
+function lab(){pb.innerHTML=run?'<i class="ti ti-player-pause"></i> Pauza':'<i class="ti ti-player-play"></i> Spustit'}
+pb.onclick=()=>{run=!run;lab()};lab();
+document.getElementById('fs').onclick=()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()};
+document.addEventListener('keydown',e=>{if(e.key===' '){e.preventDefault();pb.click()}else if(e.key==='f')document.getElementById('fs').click()});
+</script>
+</body>
+</html>
